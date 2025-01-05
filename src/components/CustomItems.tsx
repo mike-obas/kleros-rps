@@ -1,6 +1,5 @@
 "use client";
 import React, { useState, useReducer, useEffect } from "react";
-import CustomStyles from "@/styles/General";
 import CustomButton from "@/components/reusables/CustomButton";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -10,10 +9,8 @@ import { inputReducer, loadingReducer } from "@/components/reusables/reducers";
 import { GeneralTypes } from "@/utils/generalTypes";
 import { validateInputData } from "@/utils/validator";
 import NotificationModal from "./reusables/NotificationModal";
-import { customErrorObj } from "@/utils/customErrorObj";
-import { rifineErrMsg } from "@/utils/filterEntries";
 import { getItem, setItem } from "@/utils/localStorage";
-import { decrypt, encrypt, } from "@/utils/crypting";
+import { encrypt, } from "@/utils/crypting";
 import PasswordFormCol from "./reusables/PasswordFormCol";
 import { useRouter } from "next/navigation";
 
@@ -92,13 +89,6 @@ export default function CustomItems() {
         updateMultipleInput({customSecretPin: "", customContractAddress: Newaddr})
      }
 
-    //  const decryptPinToSee = async () => {
-    //     const getDetails = getItem("gameDetails")
-    //     if(getDetails?.customSecretPin) { 
-    //         console.log(await decrypt(getDetails?.customSecretPin))
-    //      }
-    //  }
-
   const submitHandler = async () => {
     startLoading("buttonLoading", true);
     setErrors({})
@@ -110,7 +100,6 @@ export default function CustomItems() {
       updateGameDetails(customSecretPin, customContractAddress)
       return startLoading("notificationModal", true)
     } catch (errs: any) {
-      //const { msgObj } = customErrorObj(errs);
       startLoading("buttonLoading", false);
       setErrors(errs);
     }
@@ -174,16 +163,6 @@ export default function CustomItems() {
         textColor={"secondary"}
         fullWidthOnSm
       />
-      <Box>
-      {errors.isError && <Typography 
-      sx={{mt: 1}} 
-      color="error" 
-      variant='caption' 
-      fontWeight={600}>
-      {rifineErrMsg(errors?.error?.message)}
-      </Typography>
-      }
-      </Box>
 
     <NotificationModal
     subText={"Game details updated successfully. You can now play another round!"}
