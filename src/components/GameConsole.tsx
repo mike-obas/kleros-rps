@@ -7,14 +7,12 @@ import Chip from "@mui/material/Chip";
 import Grid from "@mui/material/Grid2";
 import { inputReducer, loadingReducer } from "@/components/reusables/reducers";
 import { GeneralTypes } from "@/utils/generalTypes";
-import { validateInputData } from "@/utils/validator";
 import NotificationModal from "./reusables/NotificationModal";
-import { customErrorObj } from "@/utils/customErrorObj";
-import { convertToNumber, convertToPlainNumber, getTimeFromOnChain, rifineErrMsg } from "@/utils/filterEntries";
-import { getItem, setItem } from "@/utils/localStorage";
-import { decrypt, encrypt, } from "@/utils/crypting";
+import { convertToNumber, convertToPlainNumber, getErrorMsg, getTimeFromOnChain } from "@/utils/filterEntries";
+import { getItem } from "@/utils/localStorage";
+import { decrypt } from "@/utils/crypting";
 import Divider from "@mui/material/Divider";
-import { BrowserProvider, Contract, solidityPackedKeccak256, keccak256 } from "ethers";
+import { BrowserProvider, Contract, solidityPackedKeccak256, parseEther } from "ethers";
 import CustomizedSnackbars from "./reusables/Alert";
 import { rpsAbi } from "@/utils/constants";
 import CircularProgress from "@/components/reusables/CircularProgress";
@@ -26,7 +24,6 @@ import LizardIcon from '@mui/icons-material/Toll';
 import dayjs from "dayjs";
 
 const initialInput = {
-  customSecretPin: "",
   customContractAddress: "",
   connectedWallerAddress: "",
   // contract read details
@@ -43,10 +40,15 @@ const initialInput = {
 const initialLoadingState = {
   preLoading: true,
   buttonLoading: false,
+  rewardLoading: false,
+  timeCashOutLoading: false,
+  player2MoveLoading: false,
   notificationModal: false,
   noMetaMask: false,
   connected: false,
-  openAlert: false
+  openAlert: false,
+  txLink: "",
+  successMsg: ""
 };
 
 export default function GameConsole() {
@@ -79,11 +81,6 @@ export default function GameConsole() {
   };
 
   const closeAlert = () => startLoading("openAlert", false)
-
-  const getErrorMsg = (errString: string) => {
-    const errObj = JSON.parse(errString)
-    return errObj?.shortMessage || errObj?.error?.message || errObj?.info?.error?.message
-  }
 
   const connectWallet = async () => {
     // @ts-ignore
@@ -161,24 +158,20 @@ export default function GameConsole() {
       }
     }
 
-    const updateGameDetails = async (newPin: string, Newaddr: string) => {
-        const encryptedPin = await encrypt(newPin)
-        setItem("gameDetails", {customSecretPin: encryptedPin, customContractAddress: Newaddr})
-        updateMultipleInput({customSecretPin: "", customContractAddress: Newaddr})
+     const getSalt = async () => {
+        const getDetails = getItem("gameDetails")
+        if(getDetails?.customSecretPin) { 
+            const customSecretPin = await decrypt(getDetails?.customSecretPin)
+            return { customSecretPin }
+         }
+         return null
      }
-
-    //  const decryptPinToSee = async () => {
-    //     const getDetails = getItem("gameDetails")
-    //     if(getDetails?.customSecretPin) { 
-    //         console.log(await decrypt(getDetails?.customSecretPin))
-    //      }
-    //  }
 
     const revealPlayer1Move = async () => { 
       const moves = [0, 1, 2, 3, 4, 5]
-      const getDetails = getItem("gameDetails")
-        if(getDetails?.customSecretPin) { 
-        const salt = await decrypt(getDetails?.customSecretPin) 
+      const saltObj = await getSalt()
+        if(saltObj) { 
+        const salt = saltObj?.customSecretPin
         const result = moves.filter((value: number) => {
         const currentMove = solidityPackedKeccak256([ "uint8", "uint256" ], [ value, BigInt(`${salt}`) ])
         return currentMove === input.c1Hash
@@ -188,21 +181,115 @@ export default function GameConsole() {
     }
     }
 
+    const getWinner = async () => { 
+      const c1 = input.c1
+      const c2 = input.c2
+      const possibleWinsForC1: number[]  = moves[c1 as keyof typeof moves].winsAgainst
+      const player1Wins = possibleWinsForC1.includes(c2)
+      return player1Wins ? "Player 1" : "Player 2"
+    }
 
-  const submitHandler = async () => {
-    startLoading("buttonLoading", true);
+
+  const rewardWinner = async () => {
+    startLoading("rewardLoading", true);
     setErrors({})
-    const { customContractAddress, customSecretPin } = input
+    const { customContractAddress } = input
     try {
-      const payLoad = { customContractAddress, customSecretPin }
-      const { valid, validationErrors } = validateInputData(payLoad);
-      if (!valid) throw validationErrors;
-      updateGameDetails(customSecretPin, customContractAddress)
+      const saltObj = await getSalt()
+      if(!saltObj) throw {error: {message: "Please provide a valid secret pin (salt)."}}
+      if(input.c1 < 1 || input.c2 < 1) throw {error: {message: "Both players must play before reward can be granted."}}
+      const salt = saltObj?.customSecretPin
+      const winner = await getWinner()
+
+      // @ts-ignore
+      const provider = new BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const activeWalletAddress = await signer.getAddress()
+      if(activeWalletAddress !== input.j1) throw {error: {message: "Please switch wallet account to Player 1."}}
+      const contract = new Contract(customContractAddress, rpsAbi, signer);
+      const player1Move = input.c1
+      const transactionResponse = await contract.solve(player1Move, BigInt(`${salt}`));
+      const tx = await transactionResponse.hash
+      await provider.once(tx, (transactionReceipt) => {
+        //const confirmation = transactionReceipt.confirmations
+      startLoading("txLink", `https://sepolia.etherscan.io/tx/${tx}`)
+      startLoading("successMsg", `Congratulations to ${winner} for winning ${input.stake * 2} ETH. Check your wallet to see reward. Follow this link to view on sepolia etherscan: `)
+      startLoading("rewardLoading", false);
       return startLoading("notificationModal", true)
+      });
+
     } catch (errs: any) {
-      //const { msgObj } = customErrorObj(errs);
-      startLoading("buttonLoading", false);
-      setErrors(errs);
+      startLoading("rewardLoading", false);
+      const errMsg = getErrorMsg(JSON.stringify(errs))
+        setErrors({...errors, errMsg})
+        startLoading("openAlert", true)
+    }
+  };
+
+  const timeCashOut = async () => {
+    startLoading("timeCashOutLoading", true);
+    setErrors({})
+    const { customContractAddress } = input
+    try {
+      
+      if(input.c1 > 0 && input.c2 > 0) throw {error: {message: "Both players have played. Use the Reward Winner button."}}
+
+      // @ts-ignore
+      const provider = new BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const activeWalletAddress = await signer.getAddress()
+      if(activeWalletAddress !== input.j1) throw {error: {message: "Please switch wallet account to Player 1."}}
+      const contract = new Contract(customContractAddress, rpsAbi, signer);
+      const transactionResponse = await contract.j2Timeout();
+      const tx = await transactionResponse.hash
+      await provider.once(tx, (transactionReceipt) => {
+        //const confirmation = transactionReceipt.confirmations
+      startLoading("txLink", `https://sepolia.etherscan.io/tx/${tx}`)
+      startLoading("successMsg", `You have successfully cashed back your staked amount (${input.stake} ETH). Follow this link to view on sepolia etherscan: `)
+      startLoading("timeCashOutLoading", false);
+      return startLoading("notificationModal", true)
+      });
+
+    } catch (errs: any) {
+      startLoading("timeCashOutLoading", false);
+      const errMsg = getErrorMsg(JSON.stringify(errs))
+        setErrors({...errors, errMsg})
+        startLoading("openAlert", true)
+    }
+  };
+
+  const player2MoveSelection = async (player2Move: number) => {
+    startLoading("player2MoveLoading", true);
+    setErrors({})
+    const { customContractAddress } = input
+    try {
+      if(input.c1 < 1) throw {error: {message: "Player 1 must have played before you can join the game."}}
+      // @ts-ignore
+      const provider = new BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const activeWalletAddress = await signer.getAddress()
+      const ethAmount = parseEther(`${input.stake}`);
+      if(activeWalletAddress !== input.j2) throw {error: {message: "Please switch wallet account to Player 2."}}
+      const contract = new Contract(customContractAddress, rpsAbi, signer);
+      const transactionResponse = await contract.play(player2Move, {
+        value: ethAmount,
+      })
+      const tx = await transactionResponse.hash
+      const moveText = moves[player2Move as keyof typeof moves].text
+      await provider.once(tx, async (transactionReceipt) => {
+        //const confirmation = await transactionReceipt.confirmations
+      startLoading("txLink", `https://sepolia.etherscan.io/tx/${tx}`)
+      startLoading("successMsg", `Congratulations, you have staked ${input.stake} ETH to play ${moveText}. Player 1 move is now revealed below. Follow this link to view on sepolia etherscan: `)
+      startLoading("player2MoveLoading", false);
+      await revealPlayer1Move()
+      return startLoading("notificationModal", true)
+      });
+
+    } catch (errs: any) {
+      startLoading("player2MoveLoading", false);
+      const errMsg = getErrorMsg(JSON.stringify(errs))
+        setErrors({...errors, errMsg})
+        startLoading("openAlert", true)
     }
   };
 
@@ -218,6 +305,7 @@ export default function GameConsole() {
         6
       )}...${connectedWallerAddress.slice(connectedWallerAddress.length - 4)} Connected!`
     : ""
+
     const moves = { // Reference: https://en.wikipedia.org/wiki/Rock_paper_scissors#Additional_weapons
       0: { text: "Null", winsAgainst: [], icon: <></> },
       1: {
@@ -248,14 +336,6 @@ export default function GameConsole() {
     }
     const movesNumber = [1, 2, 3, 4, 5]
     const selectedMovesNumber = [input.c1, input.c2]
-
-    const getWinner = async () => { 
-      const c1 = input.c1
-      const c2 = input.c2
-      const possibleWinsForC1: number[]  = moves[c1 as keyof typeof moves].winsAgainst
-      const player1Wins = possibleWinsForC1.includes(c2)
-      return player1Wins ? "Player 1" : "Player 2"
-    }
 
     const bothHasPlayed = input.c1Hash !== "" && input.c2 > 0
     const shouldUpdateGameDetails = input.c1Hash !== "" && input.c2 > 0 && input.stake === 0
@@ -329,10 +409,10 @@ export default function GameConsole() {
             text="Reward Winner"
             textVariant="subtitle1"
             mt={1}
-            loading={loading.buttonLoading}
+            loading={loading.rewardLoading}
             height={40}
             disabledOnly={!bothHasPlayed}
-            onClickHandler={()=>{}}
+            onClickHandler={rewardWinner}
             textColor={"secondary"}
             fullWidthOnSm
         />
@@ -342,10 +422,10 @@ export default function GameConsole() {
             text="Time Cash Out"
             textVariant="subtitle1"
             mt={1}
-            loading={loading.buttonLoading}
+            loading={loading.timeCashOutLoading}
             height={40}
             disabledOnly={timeHasPassed()}
-            onClickHandler={()=>{}}
+            onClickHandler={timeCashOut}
             textColor={"secondary"}
             fullWidthOnSm
         />
@@ -371,7 +451,7 @@ export default function GameConsole() {
           <Chip 
             icon={moves[item as keyof typeof moves].icon}
             label={`${moves[item as keyof typeof moves].text}`} 
-            disabled={bothHasPlayed}
+            disabled={bothHasPlayed || loading.player2MoveLoading}
             variant="filled" 
             sx={(theme) => ({
               padding: "0px 4px",
@@ -380,7 +460,7 @@ export default function GameConsole() {
                 color: theme.vars.palette.primary.main,
               }
             })} 
-            onClick={()=>{}}
+            onClick={() => player2MoveSelection(item)}
             />
             </Grid>))}
             </Grid>
@@ -434,7 +514,8 @@ export default function GameConsole() {
 
 
     <NotificationModal
-    subText={"Game details updated successfully. You can now play another round!"}
+    subText={loading.successMsg}
+    link={loading.txLink}
     open={loading.notificationModal}
     toggleCustomModal={closeModal}
     handleAction={closeModal}

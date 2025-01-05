@@ -1,4 +1,4 @@
-import { isNumber, isEmpty, containsWhitespace } from "./filterEntries";
+import { isNumber, isEmpty } from "./filterEntries";
 
 const refinedText = (value: any) => {
     const readableText = ((value.replace(/([A-Z])/g, ' $1').trim()));

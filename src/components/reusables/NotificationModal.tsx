@@ -2,14 +2,14 @@ import * as React from 'react';
 import { styled } from '@mui/material/styles';
 import Dialog from '@mui/material/Dialog';
 import Box from '@mui/material/Box';
-import DialogContent from '@mui/material/DialogContent';
 import Typography from '@mui/material/Typography';
-import Image, { StaticImageData } from 'next/image';
+import Image from 'next/image';
 import CustomButton from './CustomButton';
 import DashboardStyles from '@/styles/General';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { GeneralTypes } from '@/utils/generalTypes';
 import { StaticImport } from 'next/dist/shared/lib/get-img-props';
+import Link from 'next/link';
 
 const BootstrapDialog = styled(Dialog)(({ theme }) => ({
   '& .MuiDialog-paper': {
@@ -21,6 +21,7 @@ interface Props {
     imageUrl?: string | StaticImport
     title?: string
     subText: string
+    link?: string
     open: boolean
     toggleCustomModal: () => void
     handleAction: () => void
@@ -29,7 +30,7 @@ interface Props {
 }
 
 function NotificationModal({
-    imageUrl, title, subText, open, toggleCustomModal, handleAction, buttonText, textColor
+    imageUrl, title, link, subText, open, toggleCustomModal, handleAction, buttonText, textColor
 }: Props) {
 
   return (
@@ -70,6 +71,10 @@ function NotificationModal({
               >
             {subText}
               </Typography>
+
+              {link && 
+              <Link href={link} />
+              }
 
         <Box sx={{ mt: 2 }}>
           <CustomButton
