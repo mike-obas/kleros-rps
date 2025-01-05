@@ -9,7 +9,7 @@ export const isNumber = (data: number) => {
 };
 
 
-export const convertToNumber = (bigNumber: bigint, decimal=4) => {
+export const convertToNumber = (bigNumber: bigint, decimal=9) => {
   const toNumber = formatEther(bigNumber);
   const toTwoDecPlaces = Number(toNumber).toFixed(decimal);
   return Number(toTwoDecPlaces);
@@ -21,8 +21,9 @@ export const getTimeFromOnChain = (time: bigint) => {
   return new Date(Number(toNumber) * 1000).toJSON();
 };
 
-export const convertToPlainNumber = (bigNumber: bigint) => {
-  const toNumber = formatEther(bigNumber);
+export const convertToPlainNumber = (bigNumber: string) => {
+  const toBigNumber = parseEther(`${bigNumber}`);
+  const toNumber = formatEther(toBigNumber);
   return Number(toNumber);
 };
 

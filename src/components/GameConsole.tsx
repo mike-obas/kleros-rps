@@ -89,6 +89,8 @@ export default function GameConsole() {
         const provider = new BrowserProvider(window.ethereum)
 
       try {
+        const getDetails = getItem("gameDetails")
+        if(!getDetails?.customContractAddress || !getDetails?.customSecretPin) throw {error: {message: "Please provide a valid contract address and secret pin (salt)."}}
         if(!loading.connected){
         const signer = await provider.getSigner();
         const walletAddress = await signer.getAddress()
@@ -140,7 +142,6 @@ export default function GameConsole() {
           TIMEOUT: getTimeFromOnChain(await contract.TIMEOUT()),
           lastAction: getTimeFromOnChain(await contract.lastAction()),
       }
-        console.log(readData)
         updateMultipleInput(readData)
         startLoading("preLoading", false)
     }
@@ -151,7 +152,6 @@ export default function GameConsole() {
  }, [loading.connected])
 
     const closeModal = (event?: GeneralTypes["onChange"], reason?: string) => {
-      updateInput("c1", 0)
       if (reason !== "backdropClick") {
         startLoading("notificationModal", false)
         startLoading("buttonLoading", false)
@@ -197,7 +197,8 @@ export default function GameConsole() {
     try {
       const saltObj = await getSalt()
       if(!saltObj) throw {error: {message: "Please provide a valid secret pin (salt)."}}
-      if(input.c1 < 1 || input.c2 < 1) throw {error: {message: "Both players must play before reward can be granted."}}
+      const c1 = input.c1
+      if(c1 < 1 || input.c2 < 1) throw {error: {message: "Both players must play before reward can be granted."}}
       const salt = saltObj?.customSecretPin
       const winner = await getWinner()
 
@@ -207,15 +208,16 @@ export default function GameConsole() {
       const activeWalletAddress = await signer.getAddress()
       if(activeWalletAddress !== input.j1) throw {error: {message: "Please switch wallet account to Player 1."}}
       const contract = new Contract(customContractAddress, rpsAbi, signer);
-      const player1Move = input.c1
+      const player1Move = c1
       const transactionResponse = await contract.solve(player1Move, BigInt(`${salt}`));
       const tx = await transactionResponse.hash
-      await provider.once(tx, (transactionReceipt) => {
+      await provider.once(tx, async (transactionReceipt) => {
         //const confirmation = transactionReceipt.confirmations
       startLoading("txLink", `https://sepolia.etherscan.io/tx/${tx}`)
       startLoading("successMsg", `Congratulations to ${winner} for winning ${input.stake * 2} ETH. Check your wallet to see reward. Follow this link to view on sepolia etherscan: `)
       startLoading("rewardLoading", false);
-      return startLoading("notificationModal", true)
+      startLoading("notificationModal", true)
+      return getContractDetails()
       });
 
     } catch (errs: any) {
@@ -231,8 +233,8 @@ export default function GameConsole() {
     setErrors({})
     const { customContractAddress } = input
     try {
-      
-      if(input.c1 > 0 && input.c2 > 0) throw {error: {message: "Both players have played. Use the Reward Winner button."}}
+      const c1 = input.c1
+      if(c1 > 0 && input.c2 > 0) throw {error: {message: "Both players have played. Use the Grant Reward button."}}
 
       // @ts-ignore
       const provider = new BrowserProvider(window.ethereum);
@@ -247,7 +249,8 @@ export default function GameConsole() {
       startLoading("txLink", `https://sepolia.etherscan.io/tx/${tx}`)
       startLoading("successMsg", `You have successfully cashed back your staked amount (${input.stake} ETH). Follow this link to view on sepolia etherscan: `)
       startLoading("timeCashOutLoading", false);
-      return startLoading("notificationModal", true)
+      startLoading("notificationModal", true)
+      return getContractDetails()
       });
 
     } catch (errs: any) {
@@ -263,7 +266,7 @@ export default function GameConsole() {
     setErrors({})
     const { customContractAddress } = input
     try {
-      if(input.c1 < 1) throw {error: {message: "Player 1 must have played before you can join the game."}}
+      if(!input.c1Hash || input.c1Hash === "") throw {error: {message: "Player 1 must have played before you can join the game."}}
       // @ts-ignore
       const provider = new BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
@@ -281,6 +284,7 @@ export default function GameConsole() {
       startLoading("txLink", `https://sepolia.etherscan.io/tx/${tx}`)
       startLoading("successMsg", `Congratulations, you have staked ${input.stake} ETH to play ${moveText}. Player 1 move is now revealed below. Follow this link to view on sepolia etherscan: `)
       startLoading("player2MoveLoading", false);
+      updateInput("c2", player2Move);
       await revealPlayer1Move()
       return startLoading("notificationModal", true)
       });
@@ -307,7 +311,7 @@ export default function GameConsole() {
     : ""
 
     const moves = { // Reference: https://en.wikipedia.org/wiki/Rock_paper_scissors#Additional_weapons
-      0: { text: "Null", winsAgainst: [], icon: <></> },
+      0: { text: "Null", winsAgainst: [], icon: <RockIcon /> },
       1: {
         text: "Rock",
         winsAgainst: [3, 5],
@@ -335,10 +339,26 @@ export default function GameConsole() {
       },
     }
     const movesNumber = [1, 2, 3, 4, 5]
-    const selectedMovesNumber = [input.c1, input.c2]
 
     const bothHasPlayed = input.c1Hash !== "" && input.c2 > 0
-    const shouldUpdateGameDetails = input.c1Hash !== "" && input.c2 > 0 && input.stake === 0
+    const shouldUpdateGameDetails = input.c1Hash !== "" && input.stake === 0
+
+    useEffect(()=> {
+      let timeoutId: any;
+      if(shouldUpdateGameDetails){
+        setErrors({errMsg: "Provide another salt and smart contract address to play another round."})
+         timeoutId = setTimeout(() => {
+          startLoading("openAlert", true)
+        }, 2000);
+      }
+      return () => clearTimeout(timeoutId);
+     }, [shouldUpdateGameDetails])
+    
+    useEffect(()=> {
+      if(input.c2 > 0) { revealPlayer1Move() }
+     }, [input.c2])
+
+    const getSelectedMovesNumber =  [input.c1, input.c2]
 
     const timeHasPassed = () => {
       if(input.lastAction === "" ) return
@@ -361,7 +381,9 @@ export default function GameConsole() {
             columnSpacing={{ xs: 1, sm: 2, md: 3 }}
           >
             <Grid size={{xs: 12}}>
+              {loading.connected && !loading.preLoading && 
               <Typography variant="subtitle1" color="success">{connectedWalletText}</Typography>
+              }
             <CustomButton
             text={
                 loading.noMetaMask
@@ -406,12 +428,12 @@ export default function GameConsole() {
           >
             <Grid size={{xs: 12, sm: 6}}>
             <CustomButton
-            text="Reward Winner"
+            text="Grant Reward"
             textVariant="subtitle1"
             mt={1}
             loading={loading.rewardLoading}
             height={40}
-            disabledOnly={!bothHasPlayed}
+            disabledOnly={!bothHasPlayed || input.stake === 0}
             onClickHandler={rewardWinner}
             textColor={"secondary"}
             fullWidthOnSm
@@ -419,12 +441,12 @@ export default function GameConsole() {
         </Grid>
         <Grid size={{xs: 12, sm: 6}}>
             <CustomButton
-            text="Time Cash Out"
+            text="Time Out Cashback"
             textVariant="subtitle1"
             mt={1}
             loading={loading.timeCashOutLoading}
             height={40}
-            disabledOnly={timeHasPassed()}
+            disabledOnly={!timeHasPassed() || input.stake === 0}
             onClickHandler={timeCashOut}
             textColor={"secondary"}
             fullWidthOnSm
@@ -451,7 +473,7 @@ export default function GameConsole() {
           <Chip 
             icon={moves[item as keyof typeof moves].icon}
             label={`${moves[item as keyof typeof moves].text}`} 
-            disabled={bothHasPlayed || loading.player2MoveLoading}
+            disabled={bothHasPlayed || loading.player2MoveLoading || timeHasPassed()}
             variant="filled" 
             sx={(theme) => ({
               padding: "0px 4px",
@@ -463,6 +485,10 @@ export default function GameConsole() {
             onClick={() => player2MoveSelection(item)}
             />
             </Grid>))}
+            {loading.player2MoveLoading &&
+            <Grid size={12} sx={{ py: 1, position: "relative" }}>
+            <CircularProgress />
+          </Grid>}
             </Grid>
 
           {bothHasPlayed &&
@@ -480,11 +506,10 @@ export default function GameConsole() {
             flex={1}
             columnSpacing={{ xs: 1, sm: 2, md: 3 }}
           >
-          {selectedMovesNumber.map((item: number, index: number) => (<Grid key={item}>
+          {getSelectedMovesNumber.map((item: number, index: number) => (<Grid key={item}>
           <Chip 
             icon={moves[item as keyof typeof moves].icon}
-            label={`${moves[item as keyof typeof moves].text} (Player ${index})`} 
-            disabled={bothHasPlayed}
+            label={`${moves[item as keyof typeof moves].text} (Player ${index + 1})`} 
             variant="filled" 
             sx={(theme) => ({
               padding: "0px 4px",
@@ -501,12 +526,12 @@ export default function GameConsole() {
             }
 
         {shouldUpdateGameDetails && 
-              <Typography sx={{my: 2}} variant="h6" color="error" fontWeight={500}>
-            {"You have played the round for the given smart contract address. Update the game details! "}
-      </Typography>}
+              <Typography sx={{mt: 6}} variant="h6" color="error" fontWeight={500}>
+            {"Provide another salt and smart contract address to play another round."}
+      </Typography>} 
         </Box>
         
-        : <></>
+        : ""
 
       }
       
@@ -525,7 +550,7 @@ export default function GameConsole() {
     <CustomizedSnackbars 
     open={loading.openAlert} 
     handleClose={closeAlert}
-    text={errors?.errMsg}
+    text={`${errors?.errMsg}`}
     severity="error"
     verticalAnchor="bottom"
     horizontalAnchor="right"
