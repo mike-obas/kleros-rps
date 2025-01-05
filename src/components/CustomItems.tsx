@@ -12,7 +12,6 @@ import NotificationModal from "./reusables/NotificationModal";
 import { getItem, setItem } from "@/utils/localStorage";
 import { encrypt, } from "@/utils/crypting";
 import PasswordFormCol from "./reusables/PasswordFormCol";
-import { useRouter } from "next/navigation";
 
 const initialInput = {
   customSecretPin: "",
@@ -29,7 +28,6 @@ export default function CustomItems() {
   const [input, setInput] = useReducer(inputReducer, initialInput);
   const [errors, setErrors] = useState(initialError);
   const [loading, setLoading] = useReducer(loadingReducer, initialLoadingState);
-  const navigate = useRouter()
 
   const startLoading = (loadingType: string, value: boolean | string) => {
     setLoading({
@@ -79,7 +77,7 @@ export default function CustomItems() {
       if (reason !== "backdropClick") {
         startLoading("notificationModal", false)
         startLoading("buttonLoading", false)
-        navigate.refresh()
+        window.location.href = "/"
       }
     }
 

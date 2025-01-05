@@ -9,7 +9,6 @@ import DashboardStyles from '@/styles/General';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { GeneralTypes } from '@/utils/generalTypes';
 import { StaticImport } from 'next/dist/shared/lib/get-img-props';
-import Link from 'next/link';
 
 const BootstrapDialog = styled(Dialog)(({ theme }) => ({
   '& .MuiDialog-paper': {
@@ -73,7 +72,9 @@ function NotificationModal({
               </Typography>
 
               {link && 
-              <Link href={link} />
+              <a target="_blank" href={link}>
+              Track Tx
+            </a>
               }
 
         <Box sx={{ mt: 2 }}>
