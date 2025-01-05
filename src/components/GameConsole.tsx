@@ -184,6 +184,7 @@ export default function GameConsole() {
     const getWinner = async () => { 
       const c1 = input.c1
       const c2 = input.c2
+      if(c1 === c2) return "both Players"
       const possibleWinsForC1: number[]  = moves[c1 as keyof typeof moves].winsAgainst
       const player1Wins = possibleWinsForC1.includes(c2)
       return player1Wins ? "Player 1" : "Player 2"
@@ -214,7 +215,8 @@ export default function GameConsole() {
       await provider.once(tx, async (transactionReceipt) => {
         //const confirmation = transactionReceipt.confirmations
       startLoading("txLink", `https://sepolia.etherscan.io/tx/${tx}`)
-      startLoading("successMsg", `Congratulations to ${winner} for winning ${input.stake * 2} ETH. Check your wallet to see reward. Follow this link to view on sepolia etherscan: `)
+      const amountWon = winner === "both Players" ? `${input.stake} ETH each` : `${input.stake * 2} ETH`
+      startLoading("successMsg", `Congratulations to ${winner} for winning ${amountWon}. Check your wallet to see reward. Follow this link to view on sepolia etherscan: `)
       startLoading("rewardLoading", false);
       startLoading("notificationModal", true)
       return getContractDetails()
@@ -349,7 +351,7 @@ export default function GameConsole() {
         setErrors({errMsg: "Provide another salt and smart contract address to play another round."})
          timeoutId = setTimeout(() => {
           startLoading("openAlert", true)
-        }, 2000);
+        }, 1500);
       }
       return () => clearTimeout(timeoutId);
      }, [shouldUpdateGameDetails])
@@ -506,7 +508,7 @@ export default function GameConsole() {
             flex={1}
             columnSpacing={{ xs: 1, sm: 2, md: 3 }}
           >
-          {getSelectedMovesNumber.map((item: number, index: number) => (<Grid key={item}>
+          {getSelectedMovesNumber.map((item: number, index: number) => (<Grid key={index}>
           <Chip 
             icon={moves[item as keyof typeof moves].icon}
             label={`${moves[item as keyof typeof moves].text} (Player ${index + 1})`} 
@@ -530,13 +532,9 @@ export default function GameConsole() {
             {"Provide another salt and smart contract address to play another round."}
       </Typography>} 
         </Box>
-        
-        : ""
-
-      }
-      
+        : 
+        ""}
       </Box> 
-
 
     <NotificationModal
     subText={loading.successMsg}
