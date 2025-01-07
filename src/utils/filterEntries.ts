@@ -29,5 +29,5 @@ export const convertToPlainNumber = (bigNumber: string) => {
 
 export const getErrorMsg = (errString: string) => {
   const errObj = JSON.parse(errString)
-  return errObj?.shortMessage || errObj?.error?.message || errObj?.info?.error?.message || "Something Went wrong, ensure you have the right access and resources to initiate this action."
+  return errObj?.shortMessage || errObj?.error?.message || errObj?.info?.error?.message || "Unknown Error"
 }

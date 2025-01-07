@@ -3,6 +3,7 @@ import React, { useState, useReducer, useEffect } from "react";
 import CustomButton from "@/components/reusables/CustomButton";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
+import Chip from "@mui/material/Chip";
 import Grid from "@mui/material/Grid2";
 import FormCol from "@/components/reusables/FormCol";
 import { inputReducer, loadingReducer } from "@/components/reusables/reducers";
@@ -11,16 +12,26 @@ import { validateInputData } from "@/utils/validator";
 import NotificationModal from "./reusables/NotificationModal";
 import { getItem, setItem } from "@/utils/localStorage";
 import { encrypt, } from "@/utils/crypting";
-import PasswordFormCol from "./reusables/PasswordFormCol";
+import { moves, movesNumber } from "./GameConsole";
+import ShortUniqueId from "short-unique-id";
+import { Contract, BrowserProvider, parseEther } from "ethers";
+import { hasherAbi, hasherAddress, rpsAbi, rpsByteCode } from "@/utils/constants";
+import { ContractFactory } from "ethers";
+import { getErrorMsg } from "@/utils/filterEntries";
+import CustomizedSnackbars from "./reusables/Alert";
 
 const initialInput = {
   customSecretPin: "",
+  c1: 0,
+  stakeAmount: 0,
+  partnerAddress: "",
   customContractAddress: ""
 };
 
 const initialLoadingState = {
   buttonLoading: false,
   notificationModal: false,
+  openAlert: false
 };
 
 export default function CustomItems() {
@@ -61,11 +72,12 @@ export default function CustomItems() {
     });
   };
 
+  const closeAlert = () => startLoading("openAlert", false)
+
   const currentLocalItems = async () => {
     const getDetails = getItem("gameDetails")
-    if(getDetails?.customSecretPin) { updateInput("customSecretPin", "") }
-    if(getDetails?.customContractAddress) { 
-        updateInput("customContractAddress", `${getDetails?.customContractAddress}`) 
+    if(getDetails?.partnerAddress) { 
+        updateInput("partnerAddress", `${getDetails?.partnerAddress}`) 
     }
  }
 
@@ -81,25 +93,55 @@ export default function CustomItems() {
       }
     }
 
-    const updateGameDetails = async (newPin: string, Newaddr: string) => {
+    const updateGameDetails = async (newPin: string, Newaddr: string, partnerAddress: string) => {
         const encryptedPin = await encrypt(newPin)
-        setItem("gameDetails", {customSecretPin: encryptedPin, customContractAddress: Newaddr})
-        updateMultipleInput({customSecretPin: "", customContractAddress: Newaddr})
+        setItem("gameDetails", {
+          customSecretPin: encryptedPin, 
+          customContractAddress: Newaddr,
+          partnerAddress
+        })
+        updateMultipleInput({partnerAddress})
+        updateInput("c1", 0) 
+     }
+
+     const player1MoveSelection = async (player2Move: number) => { 
+      updateInput("c1", player2Move) 
      }
 
   const submitHandler = async () => {
     startLoading("buttonLoading", true);
     setErrors({})
-    const { customContractAddress, customSecretPin } = input
+    const { partnerAddress, c1, stakeAmount } = input
     try {
-      const payLoad = { customContractAddress, customSecretPin }
+      const uuid = new ShortUniqueId({ length: 18, dictionary: 'number' });
+      const customSecretPin = uuid.rnd()
+      const payLoad = { partnerAddress, c1, stakeAmount }
       const { valid, validationErrors } = validateInputData(payLoad);
       if (!valid) throw validationErrors;
-      updateGameDetails(customSecretPin, customContractAddress)
+
+      // @ts-ignore
+      const provider = new BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const signerAddress = await signer.getAddress()
+      if(signerAddress === partnerAddress) throw {error: {message: "Please use a different wallet address as a second player."}}
+
+      const contract = new Contract(hasherAddress, hasherAbi, signer);
+      const getHashResponse = await contract.hash(input.c1, BigInt(`${customSecretPin}`));
+      const hasherTxResult = await getHashResponse
+      const factory = new ContractFactory(rpsAbi, rpsByteCode, signer);
+      const rpsContract = await factory.deploy(hasherTxResult, partnerAddress, {value: parseEther(`${stakeAmount}`)})
+      await rpsContract.waitForDeployment()
+      await rpsContract.deploymentTransaction()?.wait()
+      const customContractAddress = await rpsContract.getAddress();
+      updateGameDetails(customSecretPin, customContractAddress, partnerAddress)
       return startLoading("notificationModal", true)
     } catch (errs: any) {
       startLoading("buttonLoading", false);
-      setErrors(errs);
+      const errMsg = getErrorMsg(JSON.stringify(errs))
+      if(errMsg !== "Unknown Error") {
+       setErrors({errMsg})
+       startLoading("openAlert", true)
+       } else { setErrors(errs) }
     }
   };
 
@@ -120,39 +162,69 @@ export default function CustomItems() {
             flex={1}
             columnSpacing={{ xs: 1, sm: 2, md: 3 }}
           >
-            <PasswordFormCol
-              name="customSecretPin"
-              id="customSecretPin"
-              value={input.customSecretPin}
+            <Grid size={12}>
+          <Typography variant={"subtitle1"} color={"primary"} fontWeight={500}>
+          Choose Move
+        </Typography>
+        </Grid>
+          {movesNumber.map((item: number) => (<Grid key={item}>
+          <Chip 
+            icon={moves[item as keyof typeof moves].icon}
+            label={`${moves[item as keyof typeof moves].text}`} 
+            disabled={loading.buttonLoading}
+            variant="filled" 
+            sx={(theme) => ({
+              padding: "0px 4px",
+              border: `${input.c1 === item ? "1px" : "0px"} solid lightgrey`,
+              backgroundColor: input.c1 === item ? theme.vars.palette.secondary.main  : theme.vars.palette.secondary.light,
+              '& .MuiChip-label': {
+                color: theme.vars.palette.primary.main,
+              }
+            })} 
+            onClick={() => player1MoveSelection(item)}
+            />
+            </Grid>))}
+
+            {errors?.c1 && <Grid size={12}>
+          <Typography variant={"caption"} color={"error"} fontWeight={500}>
+         {"Please Select a Move"}
+          </Typography>
+          </Grid>}
+
+          <FormCol
+              name="stakeAmount"
+              id="stakeAmount"
+              value={input.stakeAmount}
               onChangeHandler={formHandler}
-              placeholder="Secret pin"
-              title={"Custom Secret Pin (Salt)"}
+              placeholder="Stake Amount"
+              title={"Stake Amount"}
               xs={12}
               md={12}
-              error={errors?.customSecretPin}
+              error={errors?.stakeAmount}
               type={"number"}
               size="small"
               textWeight={500}
-            />
+            /> 
+
             <FormCol
-              name="customContractAddress"
-              id="customContractAddress"
-              value={input.customContractAddress}
+              name="partnerAddress"
+              id="partnerAddress"
+              value={input.partnerAddress}
               onChangeHandler={formHandler}
-              placeholder="Contract Address"
-              title={"Custom Contract Address"}
+              placeholder="Partner Wallet Address"
+              title={"Choose Partner"}
               xs={12}
               md={12}
-              error={errors?.customContractAddress}
+              error={errors?.partnerAddress}
               type={"text"}
               size="small"
               textWeight={500}
-            />
+            /> 
           </Grid>
       </Box>
 
       <CustomButton
-        text="Use Custom Details"
+        text="Create Game"
         textVariant="subtitle1"
         loading={loading.buttonLoading}
         height={40}
@@ -163,12 +235,20 @@ export default function CustomItems() {
       />
 
     <NotificationModal
-    subText={"Game details updated successfully. You can now play another round!"}
+    subText={"Game created successfully. Your partner can now play!"}
     open={loading.notificationModal}
     toggleCustomModal={closeModal}
     handleAction={closeModal}
     buttonText={"Okay"}
     textColor="success"
+    />
+     <CustomizedSnackbars
+    open={loading.openAlert} 
+    handleClose={closeAlert}
+    text={`${errors?.errMsg}`}
+    severity="error"
+    verticalAnchor="bottom"
+    horizontalAnchor="right"
     />
     </Box>
   );

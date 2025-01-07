@@ -51,6 +51,36 @@ const initialLoadingState = {
   successMsg: ""
 };
 
+export const moves = { // Reference: https://en.wikipedia.org/wiki/Rock_paper_scissors#Additional_weapons
+  0: { text: "Null", winsAgainst: [], icon: <RockIcon /> },
+  1: {
+    text: "Rock",
+    winsAgainst: [3, 5],
+    icon: <RockIcon />
+  },
+  2: {
+    text: "Paper",
+    winsAgainst: [1, 4],
+    icon: <PaperIcon />
+  },
+  3: {
+    text: "Scissors",
+    winsAgainst: [2, 5],
+    icon: <ScissorsIcon />
+  },
+  4: {
+    text: "Spock",
+    winsAgainst: [1, 3],
+    icon: <SpockIcon />
+  },
+  5: {
+    text: "Lizard",
+    winsAgainst: [2, 4],
+    icon: <LizardIcon />
+  },
+}
+export const movesNumber = [1, 2, 3, 4, 5]
+
 export default function GameConsole() {
   const initialError: any = {};
   const [input, setInput] = useReducer(inputReducer, initialInput);
@@ -303,7 +333,7 @@ export default function GameConsole() {
   const hasConneted = loading.connected && connectedWallerAddress
   const player1isActive = hasConneted && connectedWallerAddress === input.j1
   const player2isActive = hasConneted && connectedWallerAddress === input.j2
-  const activePlayerText = player1isActive ? "Player 1" : player2isActive ? "Player 2" : "Unknown Player"
+  const activePlayerText = player1isActive ? "Player 1" : player2isActive ? "Player 2" : "Wallet"
 
   const connectedWalletText = hasConneted
     ? `${activePlayerText}: ${connectedWallerAddress.slice(
@@ -312,43 +342,13 @@ export default function GameConsole() {
       )}...${connectedWallerAddress.slice(connectedWallerAddress.length - 4)} Connected!`
     : ""
 
-    const moves = { // Reference: https://en.wikipedia.org/wiki/Rock_paper_scissors#Additional_weapons
-      0: { text: "Null", winsAgainst: [], icon: <RockIcon /> },
-      1: {
-        text: "Rock",
-        winsAgainst: [3, 5],
-        icon: <RockIcon />
-      },
-      2: {
-        text: "Paper",
-        winsAgainst: [1, 4],
-        icon: <PaperIcon />
-      },
-      3: {
-        text: "Scissors",
-        winsAgainst: [2, 5],
-        icon: <ScissorsIcon />
-      },
-      4: {
-        text: "Spock",
-        winsAgainst: [1, 3],
-        icon: <SpockIcon />
-      },
-      5: {
-        text: "Lizard",
-        winsAgainst: [2, 4],
-        icon: <LizardIcon />
-      },
-    }
-    const movesNumber = [1, 2, 3, 4, 5]
-
     const bothHasPlayed = input.c1Hash !== "" && input.c2 > 0
     const shouldUpdateGameDetails = input.c1Hash !== "" && input.stake === 0
 
     useEffect(()=> {
       let timeoutId: any;
       if(shouldUpdateGameDetails){
-        setErrors({errMsg: "Provide another salt and smart contract address to play another round."})
+        setErrors({errMsg: "Please create another game to play a new round."})
          timeoutId = setTimeout(() => {
           startLoading("openAlert", true)
         }, 1500);
@@ -497,7 +497,7 @@ export default function GameConsole() {
           <Box>
             <Divider sx={(theme)=> ({borderColor: `${theme.vars.palette.secondary}`, my: 3})} />
           <Typography sx={{my: 2}} variant="h6" color="primary" fontWeight={500}>
-            {"Selected Moves"}
+            {"Last Selected Moves"}
           </Typography>
 
           <Grid
@@ -529,7 +529,7 @@ export default function GameConsole() {
 
         {shouldUpdateGameDetails && 
               <Typography sx={{mt: 6}} variant="h6" color="error" fontWeight={500}>
-            {"Provide another salt and smart contract address to play another round."}
+            {"Please create another game to play a new round."}
       </Typography>} 
         </Box>
         : 

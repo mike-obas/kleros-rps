@@ -9,7 +9,7 @@ const refinedText = (value: any) => {
 
 export const validateInputData = (data: any) => {
     let validationErrors: any = {};
-    if(data.customSecretPin && !isNumber(Number(data.customSecretPin))) validationErrors.customSecretPin ="The Salt must be a number"
+    if(data.stakeAmount && Number(data.stakeAmount) <= 0) validationErrors.stakeAmount ="Stake amount must be greater than zero (0)."
     Object.entries(data).forEach((value: any) => {
     if(isEmpty(value[1])) validationErrors[value[0]] = `${refinedText(value[0])} is Required`; 
     });
