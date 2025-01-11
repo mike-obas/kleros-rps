@@ -79,6 +79,9 @@ export default function CustomItems() {
     if(getDetails?.partnerAddress) { 
         updateInput("partnerAddress", `${getDetails?.partnerAddress}`) 
     }
+    if(getDetails?.stakeAmount) { 
+      updateInput("stakeAmount", Number(getDetails?.stakeAmount)) 
+  }
  }
 
  useEffect(()=> {
@@ -93,14 +96,15 @@ export default function CustomItems() {
       }
     }
 
-    const updateGameDetails = async (newPin: string, Newaddr: string, partnerAddress: string) => {
+    const updateGameDetails = async (newPin: string, Newaddr: string, partnerAddress: string, stakeAmount: number) => {
         const encryptedPin = await encrypt(newPin)
         setItem("gameDetails", {
           customSecretPin: encryptedPin, 
           customContractAddress: Newaddr,
-          partnerAddress
+          partnerAddress,
+          stakeAmount
         })
-        updateMultipleInput({partnerAddress})
+        updateMultipleInput({partnerAddress, stakeAmount})
         updateInput("c1", 0) 
      }
 
@@ -133,7 +137,7 @@ export default function CustomItems() {
       await rpsContract.waitForDeployment()
       await rpsContract.deploymentTransaction()?.wait()
       const customContractAddress = await rpsContract.getAddress();
-      updateGameDetails(customSecretPin, customContractAddress, partnerAddress)
+      updateGameDetails(customSecretPin, customContractAddress, partnerAddress, stakeAmount)
       return startLoading("notificationModal", true)
     } catch (errs: any) {
       startLoading("buttonLoading", false);
@@ -145,7 +149,7 @@ export default function CustomItems() {
     }
   };
 
-  const welcomeMsg = `Welcome to KLEROS RPS Game`
+  const welcomeMsg = `A Web3 Rock Paper Scissors Game Extension`
 
   return (
       <Box>

@@ -14,8 +14,8 @@ const roboto = Roboto({
   });
 
 export const metadata: Metadata = {
-  title: "Kleros RPS App",
-  description: "Amazing Stuff At Kleros",
+  title: "RPSSL Web3 App",
+  description: "Amazing Stuff - An extension of Rock Paper Scissors game",
   icons: `https://kleros.io/favicon.svg?v=bcd0ce169f2a262c60ec2cbca43166ee`
 };
 
