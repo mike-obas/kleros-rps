@@ -80,7 +80,7 @@ export default function CustomItems() {
         updateInput("partnerAddress", `${getDetails?.partnerAddress}`) 
     }
     if(getDetails?.stakeAmount) { 
-      updateInput("stakeAmount", Number(getDetails?.stakeAmount)) 
+      updateInput("stakeAmount", getDetails?.stakeAmount) 
   }
  }
 
