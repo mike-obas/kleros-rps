@@ -33,7 +33,7 @@ Built on the Sepolia Testnet as an interactive Web3 role challenge.
 
 ### Play Live
 
-👉 **[Launch DApp Live Demo](https://kleros-rps.vercel.app/)**
+👉 **[Launch DApp Live Demo](https://kleros-rps.vercel.app)**
 
 ---
 
