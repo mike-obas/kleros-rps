@@ -50,7 +50,7 @@ Built on the Sepolia Testnet as an interactive Web3 role challenge.
 
 ```bash
 # Clone the repository
-git clone [https://github.com/mike-obas/kleros-rps.git](https://github.com/mike-obas/kleros-rps.git)
+git clone https://github.com/mike-obas/kleros-rps.git
 
 # Navigate into the project directory
 cd kleros-rps
