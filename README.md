@@ -50,10 +50,10 @@ Built on the Sepolia Testnet as an interactive Web3 role challenge.
 
 ```bash
 # Clone the repository
-git clone [https://github.com/your-username/web3-rps-game.git](https://github.com/your-username/web3-rps-game.git)
+git clone [https://github.com/mike-obas/kleros-rps.git](https://github.com/mike-obas/kleros-rps.git)
 
 # Navigate into the project directory
-cd web3-rps-game
+cd kleros-rps
 
 # Install dependencies
 npm install
